@@ -1,0 +1,24 @@
+Source: smartcard-plugin-uicc
+Priority: extra
+Maintainer: Wonkyu Kwon <wonkyu.kwon@samsung.com>, Sangsoo Lee <constant.lee@samsung.com>, Sungjae Lim <sungjae.lim@samsung.com>, Junyong Sim <junyong.sim@samsung.com>, Sechang Sohn <sc.sohn@samsung.com>
+Build-Depends: debhelper (>= 8.0.0), dlog-dev, smartcard-service-common-dev, libslp-tapi-dev
+Standards-Version: 3.9.2
+Section: libs
+Homepage: <insert the upstream URL, if relevant>
+#Vcs-Git: git://git.debian.org/collab-maint/smartcard-plugin-uicc.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/smartcard-plugin-uicc.git;a=summary
+
+Package: smartcard-plugin-uicc
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Smart card service plug-in for UICC
+ Smart card service(Open mobile API) plug-in for UICC
+
+Package: smartcard-plugin-uicc-dbg
+Section: debug
+Architecture: any
+Depends: smartcard-plugin-uicc (= ${binary:Version})
+Description: Smart card service plug-in for UICC (debug)
+ Smart card service(Open mobile API) plug-in for UICC
+
