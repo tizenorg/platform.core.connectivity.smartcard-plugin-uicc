@@ -1,19 +1,18 @@
 /*
-* Copyright (c) 2012, 2013 Samsung Electronics Co., Ltd.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
-
+ * Copyright (c) 2012, 2013 Samsung Electronics Co., Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 /* standard library header */
 #include <stdio.h>
@@ -103,6 +102,8 @@ static void _uiccTransmitCallback(TapiHandle *handle, int result, void *data, vo
 		{
 			SCARD_DEBUG("there is no callback");
 		}
+
+		delete param;
 	}
 	else
 	{
@@ -137,6 +138,8 @@ static void _uiccGetATRCallback(TapiHandle *handle, int result, void *data, void
 		{
 			SCARD_DEBUG("there is no callback");
 		}
+
+		delete param;
 	}
 	else
 	{
@@ -225,6 +228,8 @@ namespace smartcard_service_api
 				apdu_data.apdu = command.getBuffer();
 				apdu_data.apdu_len = command.getLength();
 
+				syncLock();
+
 				result = tel_req_sim_apdu(handle, &apdu_data, &UICCTerminal::uiccTransmitAPDUCallback, this);
 				if (result == 0)
 				{
@@ -233,9 +238,8 @@ namespace smartcard_service_api
 					error = 0;
 					this->response.releaseBuffer();
 
-					syncLock();
 					result = waitTimedCondition(3);
-					syncUnlock();
+
 
 					if (result == 0 && error == 0)
 					{
@@ -255,6 +259,8 @@ namespace smartcard_service_api
 				{
 					SCARD_DEBUG_ERR("tel_req_sim_apdu failed [%d]", result);
 				}
+
+				syncUnlock();
 			}
 			else
 			{
@@ -275,6 +281,8 @@ namespace smartcard_service_api
 
 		SCOPE_LOCK(mutex)
 		{
+			syncLock();
+
 			result = tel_req_sim_atr(handle, &UICCTerminal::uiccGetAtrCallback, this);
 			if (result == 0)
 			{
@@ -283,9 +291,7 @@ namespace smartcard_service_api
 				error = 0;
 				this->response.releaseBuffer();
 
-				syncLock();
 				result = waitTimedCondition(3);
-				syncUnlock();
 
 				if (result == 0 && error == 0)
 				{
@@ -305,6 +311,8 @@ namespace smartcard_service_api
 			{
 				SCARD_DEBUG_ERR("tel_req_sim_atr failed [%d]", result);
 			}
+
+			syncUnlock();
 		}
 
 		SCARD_END();
@@ -427,6 +435,8 @@ namespace smartcard_service_api
 
 		SCARD_DEBUG("APDU response");
 
+		instance->syncLock();
+
 		instance->error = access_rt;
 
 		if (instance->error == 0)
@@ -443,7 +453,6 @@ namespace smartcard_service_api
 			SCARD_DEBUG_ERR("error : event->Status == [%d]", access_rt);
 		}
 
-		instance->syncLock();
 		instance->signalCondition();
 		instance->syncUnlock();
 	}
@@ -455,6 +464,8 @@ namespace smartcard_service_api
 		TelSimAtrResp_t *atr  = (TelSimAtrResp_t *)data;
 
 		SCARD_DEBUG("Get ATR response");
+
+		instance->syncLock();
 
 		instance->error = access_rt;
 
@@ -472,7 +483,6 @@ namespace smartcard_service_api
 			SCARD_DEBUG_ERR("error : event->Status == [%d]", access_rt);
 		}
 
-		instance->syncLock();
 		instance->signalCondition();
 		instance->syncUnlock();
 	}
@@ -510,4 +520,3 @@ namespace smartcard_service_api
 		}
 	}
 } /* namespace smartcard_service_api */
-

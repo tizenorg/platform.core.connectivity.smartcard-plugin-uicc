@@ -1,7 +1,7 @@
 Name:       smartcard-plugin-uicc
 Summary:    Smartcard plugin uicc
-Version:    0.0.1
-Release:    9
+Version:    0.0.3
+Release:    0
 Group:      libs
 License:    Apache License, Version 2.0
 Source0:    %{name}-%{version}.tar.gz
