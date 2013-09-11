@@ -42,6 +42,7 @@ namespace smartcard_service_api
 		/* temporary data for sync function */
 		ByteArray response;
 		int error;
+		bool complete;
 
 		UICCTerminal();
 		~UICCTerminal();
@@ -56,12 +57,12 @@ namespace smartcard_service_api
 		bool initialize();
 		void finalize();
 
-		bool isSecureElementPresence();
+		bool isSecureElementPresence() const;
 
-		int transmitSync(ByteArray command, ByteArray &response);
+		int transmitSync(const ByteArray &command, ByteArray &response);
 		int getATRSync(ByteArray &atr);
 
-		int transmit(ByteArray command, terminalTransmitCallback callback, void *userParam);
+		int transmit(const ByteArray &command, terminalTransmitCallback callback, void *userParam);
 		int getATR(terminalGetATRCallback callback, void *userParam);
 
 		friend void uiccTransmitAPDUCallback(TapiHandle *handle, int result, void *data, void *user_data);
