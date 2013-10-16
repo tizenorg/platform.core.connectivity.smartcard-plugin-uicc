@@ -209,6 +209,17 @@ namespace smartcard_service_api
 		_END();
 	}
 
+	bool UICCTerminal::open()
+	{
+		/* no need to open */
+		return true;
+	}
+
+	void UICCTerminal::close()
+	{
+		/* no need to close */
+	}
+
 	int UICCTerminal::transmitSync(const ByteArray &command,
 		ByteArray &response)
 	{

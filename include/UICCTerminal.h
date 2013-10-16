@@ -57,6 +57,9 @@ namespace smartcard_service_api
 		bool initialize();
 		void finalize();
 
+		bool open();
+		void close();
+
 		bool isSecureElementPresence() const;
 
 		int transmitSync(const ByteArray &command, ByteArray &response);
