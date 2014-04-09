@@ -1,6 +1,6 @@
 Name:       smartcard-plugin-uicc
 Summary:    Smartcard plugin uicc
-Version:          0.0.7
+Version:          0.0.8
 Release:    0
 Group:      Telephony/Service
 License:    Apache-2.0
