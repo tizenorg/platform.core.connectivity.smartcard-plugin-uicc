@@ -44,6 +44,14 @@ using namespace smartcard_service_api;
 static const char *se_name = "SIM1";
 
 /* below functions will be called when dlopen or dlclose is called */
+
+typedef struct _context_s
+{
+	GMainLoop *loop;
+	void *resp;
+}
+context_s;
+
 void __attribute__ ((constructor)) lib_init()
 {
 }
@@ -143,9 +151,20 @@ static void _uiccGetATRCallback(TapiHandle *handle, int result,
 	}
 }
 
+static void _uiccCallback_sync(TapiHandle *handle, int result,
+	void *data, void *user_data)
+{
+	context_s* context = (context_s*)user_data;
+
+	if(result == TAPI_SIM_ACCESS_SUCCESS)
+		context->resp = data;
+
+	g_main_loop_quit(context->loop);
+}
+
 namespace smartcard_service_api
 {
-	UICCTerminal::UICCTerminal() : Terminal(), complete(false)
+	UICCTerminal::UICCTerminal() : Terminal()
 	{
 		name = (char *)se_name;
 
@@ -170,6 +189,10 @@ namespace smartcard_service_api
 
 		if (initialized == false)
 		{
+//			char **cpList = NULL;
+//
+//			cpList = tel_get_cp_name_list();
+
 			handle = tel_init(NULL);
 			if (handle != NULL)
 			{
@@ -179,6 +202,9 @@ namespace smartcard_service_api
 					TAPI_NOTI_SIM_STATUS,
 					&UICCTerminal::uiccStatusNotiCallback,
 					this);
+				if (error < 0) {
+					_ERR("tel_register_noti_event failed, [%d]", error);
+				}
 
 				initialized = true;
 			}
@@ -199,7 +225,10 @@ namespace smartcard_service_api
 
 		if (isInitialized())
 		{
-			tel_deregister_noti_event(handle, TAPI_NOTI_SIM_STATUS);
+			if (tel_deregister_noti_event(handle,
+				TAPI_NOTI_SIM_STATUS) < 0) {
+				_ERR("tel_deregister_noti_event failed");
+			}
 
 			tel_deinit(handle);
 
@@ -231,46 +260,34 @@ namespace smartcard_service_api
 		{
 			if (command.size() > 0)
 			{
+				TelSimApduResp_t *resp = NULL;
 				TelSimApdu_t apdu_data = { 0, };
+				context_s context = { NULL, resp };
+
+				context.loop = g_main_loop_new(NULL, false);
 
 				apdu_data.apdu = (uint8_t *)command.getBuffer();
 				apdu_data.apdu_len = command.size();
 
-				complete = false;
-				error = 0;
-				this->response.clear();
-
 				result = tel_req_sim_apdu(handle, &apdu_data,
-					&UICCTerminal::uiccTransmitAPDUCallback,
-					this);
-				if (result == 0)
+					_uiccCallback_sync, &context);
+				if (result != 0)
 				{
-					while (complete == false) {
-						g_main_context_iteration(NULL,
-							false);
-					}
+					_ERR("tel_req_sim_apdu failed [%d]", result);
 
-					result = error;
-
-					if (error == SCARD_ERROR_OK &&
-						this->response.size() > 0)
-						{
-							response = this->response;
-					}
-					else
-					{
-						_ERR("tel_req_sim_apdu failed, cbResult [%d]", error);
-					}
+					result = SCARD_ERROR_IO_FAILED;
 				}
 				else
 				{
-					_ERR("tel_req_sim_apdu failed [%d]", result);
-					result = SCARD_ERROR_IO_FAILED;
+					g_main_loop_run(context.loop);
+					response.assign(((TelSimApduResp_t *)context.resp)->apdu_resp,
+						((TelSimApduResp_t *)context.resp)->apdu_resp_len);
 				}
 			}
 			else
 			{
 				_ERR("apdu is empty");
+
 				result = SCARD_ERROR_ILLEGAL_PARAM;
 			}
 		}
@@ -288,35 +305,29 @@ namespace smartcard_service_api
 
 		SCOPE_LOCK(mutex)
 		{
-			complete = false;
-			error = 0;
-			this->response.clear();
+			TelSimAtrResp_t *resp = NULL;
+			context_s context = { NULL, resp };
+
+			context.loop = g_main_loop_new(NULL, false);
 
 			result = tel_req_sim_atr(handle,
-				&UICCTerminal::uiccGetAtrCallback, this);
-			if (result == 0)
+				_uiccCallback_sync, &context);
+			if(result != 0)
 			{
-				while (complete == false) {
-					g_main_context_iteration(NULL,
-						false);
-				}
+				_ERR("tel_req_sim_atr failed [%d]", result);
 
-				result = error;
-
-				if (error == SCARD_ERROR_OK &&
-					this->response.size() > 0)
-					{
-						atr = this->response;
-				}
-				else
-				{
-					_ERR("tel_req_sim_atr failed, cbResult [%d]", error);
-				}
+				result = SCARD_ERROR_IO_FAILED;
 			}
 			else
 			{
-				_ERR("tel_req_sim_atr failed [%d]", result);
-				result = SCARD_ERROR_IO_FAILED;
+				g_main_loop_run(context.loop);
+
+				if((TelSimAtrResp_t *)context.resp != NULL &&
+						((TelSimAtrResp_t *)context.resp)->atr_resp != NULL )
+				{
+					atr.assign(((TelSimAtrResp_t *)context.resp)->atr_resp,
+						((TelSimAtrResp_t *)context.resp)->atr_resp_len);
+				}
 			}
 		}
 
@@ -432,62 +443,6 @@ namespace smartcard_service_api
 		_END();
 
 		return result;
-	}
-
-	void UICCTerminal::uiccTransmitAPDUCallback(TapiHandle *handle,
-		int result, void *data, void *user_data)
-	{
-		UICCTerminal *instance = (UICCTerminal *)user_data;
-		TelSimAccessResult_t access_rt = (TelSimAccessResult_t)result;
-		TelSimApduResp_t *apdu = (TelSimApduResp_t *)data;
-
-		instance->error = access_rt;
-
-		if (instance->error == 0)
-		{
-			if (apdu != NULL && apdu->apdu_resp_len > 0)
-			{
-				instance->response.assign(apdu->apdu_resp,
-					apdu->apdu_resp_len);
-			}
-
-			_DBG("response : %s", instance->response.toString().c_str());
-			instance->error = SCARD_ERROR_OK;
-		}
-		else
-		{
-			_ERR("error : event->Status == [%d]", access_rt);
-			instance->error = SCARD_ERROR_IO_FAILED;
-		}
-
-		instance->complete = true;
-	}
-
-	void UICCTerminal::uiccGetAtrCallback(TapiHandle *handle, int result,
-		void *data, void *user_data)
-	{
-		UICCTerminal *instance = (UICCTerminal *)user_data;
-		TelSimAccessResult_t access_rt = (TelSimAccessResult_t)result;
-		TelSimAtrResp_t *atr  = (TelSimAtrResp_t *)data;
-
-		if (access_rt == 0)
-		{
-			if (atr != NULL && atr->atr_resp_len > 0)
-			{
-				instance->response.assign(atr->atr_resp,
-					atr->atr_resp_len);
-			}
-
-			_DBG("response : %s", instance->response.toString().c_str());
-			instance->error = SCARD_ERROR_OK;
-		}
-		else
-		{
-			_ERR("error : event->Status == [%d]", access_rt);
-			instance->error = SCARD_ERROR_IO_FAILED;
-		}
-
-		instance->complete = true;
 	}
 
 	void UICCTerminal::uiccStatusNotiCallback(TapiHandle *handle,
