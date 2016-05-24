@@ -160,6 +160,7 @@ static void _uiccCallback_sync(TapiHandle *handle, int result,
 		context->resp = data;
 
 	g_main_loop_quit(context->loop);
+	g_main_loop_unref(context->loop);
 }
 
 namespace smartcard_service_api
